@@ -1,5 +1,5 @@
 import Groq from "groq-sdk";
-import { CATEGORIAS_INTERES, ParametrosViajeSchema, type ParametrosViaje } from "./schema.js";
+import { CATEGORIAS_INTERES, ParametrosViajeSchema, type ParametrosViaje, type Recomendacion } from "./schema.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
@@ -52,4 +52,38 @@ export async function extraerParametros(texto: string): Promise<ParametrosViaje>
   }
 
   return result.data;
+}
+
+const REDACTOR_SYSTEM_PROMPT = `Eres el asistente conversacional de ExploraChiapas.
+Recibiras un itinerario en JSON que ya fue calculado por el motor de recomendacion (clustering,
+reglas de asociacion y optimizacion de presupuesto/tiempo). Esos datos son reales y verificados.
+
+Reglas estrictas:
+- NO inventes lugares, restaurantes, precios ni datos que no esten en el JSON recibido.
+- Si el itinerario esta vacio, dilo con honestidad y sugiere ajustar presupuesto, tiempo o interes.
+- Menciona el costo total y el tiempo total del itinerario.
+- Tono amigable, breve (maximo 4-5 lineas), en espanol, dirigido directamente al turista.
+- No menciones JSON, clusters, Apriori, K-Means ni detalles tecnicos: el usuario solo quiere su plan de viaje.`;
+
+export async function redactarRespuesta(
+  recomendacion: Recomendacion,
+  textoOriginal: string,
+): Promise<string> {
+  const completion = await groq.chat.completions.create({
+    model: MODEL,
+    temperature: 0.4,
+    messages: [
+      { role: "system", content: REDACTOR_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Mensaje original del turista: "${textoOriginal}"\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(recomendacion)}`,
+      },
+    ],
+  });
+
+  const mensaje = completion.choices[0]?.message?.content;
+  if (!mensaje) {
+    throw new ExtractionError("Groq no devolvio contenido al redactar la respuesta final");
+  }
+  return mensaje.trim();
 }
