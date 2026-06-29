@@ -170,6 +170,75 @@
       ]
     },
     {
+      "name": "Planear - Flujo completo Capa 1 + Capa 2",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"texto\": \"Quiero ir a Suchiapa, conocer un lugar y comer carne asada, somos 2 personas, presupuesto de $500, tengo medio dia.\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/planear", "host": ["{{baseUrl}}"], "path": ["planear"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('Responde con parametros, recomendacion y mensaje', function () {",
+              "    pm.expect(body).to.have.property('parametros');",
+              "    pm.expect(body).to.have.property('recomendacion');",
+              "    pm.expect(body).to.have.property('mensaje');",
+              "});",
+              "pm.test('La recomendacion viene del motor ML con un id de inferencia', function () {",
+              "    pm.expect(body.recomendacion).to.have.property('id');",
+              "    pm.expect(body.recomendacion).to.have.property('itinerario');",
+              "});",
+              "pm.test('El mensaje es texto no vacio', function () {",
+              "    pm.expect(body.mensaje).to.be.a('string').and.to.have.length.greaterThan(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Planear - Lugar sin acentos (Tuxtla Gutierrez)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"texto\": \"Quiero visitar el zoologico en Tuxtla Gutierrez con mi familia, somos 3 personas, tenemos 300 pesos y medio dia\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/planear", "host": ["{{baseUrl}}"], "path": ["planear"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('El texto sin acentos si encuentra destinos reales en Tuxtla Gutierrez', function () {",
+              "    pm.expect(body.recomendacion.itinerario.length).to.be.greaterThan(0);",
+              "    const municipios = body.recomendacion.itinerario.map(a => a.municipio.toLowerCase());",
+              "    pm.expect(municipios.some(m => m.includes('tuxtla'))).to.be.true;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "Extract - Falta el campo texto (error de validacion 400)",
       "request": {
         "method": "POST",
