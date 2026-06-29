@@ -1,0 +1,198 @@
+{
+  "info": {
+    "name": "ExploraChiapas - NLP Service (Capa 1)",
+    "description": "Pruebas del microservicio de extraccion de parametros de viaje (destino, interes, comida, personas, presupuesto, tiempo) a partir de texto libre en espanol, usando Groq API con salida JSON.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "pm.test('status is ok', function () {",
+              "    pm.expect(pm.response.json().status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Extract - Caso completo (todos los campos presentes)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"texto\": \"Quiero ir a Suchiapa, conocer un lugar y comer carne asada, somos 2 personas, presupuesto de $500, tengo medio dia.\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/extract", "host": ["{{baseUrl}}"], "path": ["extract"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('Responde con objeto parametros', function () {",
+              "    pm.expect(body).to.have.property('parametros');",
+              "});",
+              "pm.test('destino fue extraido correctamente', function () {",
+              "    pm.expect(body.parametros.destino.toLowerCase()).to.include('suchiapa');",
+              "});",
+              "pm.test('personas es un numero', function () {",
+              "    pm.expect(body.parametros.personas).to.eql(2);",
+              "});",
+              "pm.test('presupuesto es un numero', function () {",
+              "    pm.expect(body.parametros.presupuesto).to.eql(500);",
+              "});",
+              "const categoriasValidas = ['naturaleza','cultura','gastronomia','aventura','familiar','descanso','fotografia','eventos', null];",
+              "pm.test('interes esta dentro del catalogo fijo de categorias', function () {",
+              "    pm.expect(categoriasValidas).to.include(body.parametros.interes);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Extract - Campos ausentes (debe devolver null, no inventar)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"texto\": \"quiero ir de excursion a una cascada este finde, no se cuanto gastar\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/extract", "host": ["{{baseUrl}}"], "path": ["extract"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('destino es null porque no se menciono', function () {",
+              "    pm.expect(body.parametros.destino).to.be.null;",
+              "});",
+              "pm.test('presupuesto es null porque no se menciono', function () {",
+              "    pm.expect(body.parametros.presupuesto).to.be.null;",
+              "});",
+              "pm.test('interes se infiere como naturaleza (cascada)', function () {",
+              "    pm.expect(body.parametros.interes).to.eql('naturaleza');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Extract - Categoria aventura",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"texto\": \"Somos 4 amigos, queremos hacer rappel o tirolesa en algun canon, tenemos todo el dia y hasta 2000 pesos\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/extract", "host": ["{{baseUrl}}"], "path": ["extract"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "const body = pm.response.json();",
+              "pm.test('interes se clasifica como aventura', function () {",
+              "    pm.expect(body.parametros.interes).to.eql('aventura');",
+              "});",
+              "pm.test('personas es 4', function () {",
+              "    pm.expect(body.parametros.personas).to.eql(4);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Extract - Texto vacio (error de validacion 400)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"texto\": \"\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/extract", "host": ["{{baseUrl}}"], "path": ["extract"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "pm.test('Respuesta incluye detalle de error', function () {",
+              "    pm.expect(pm.response.json()).to.have.property('error');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Extract - Falta el campo texto (error de validacion 400)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        },
+        "url": { "raw": "{{baseUrl}}/extract", "host": ["{{baseUrl}}"], "path": ["extract"] }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
