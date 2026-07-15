@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: ec-nlp-service
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ML_ENGINE_URL
+        sync: false
