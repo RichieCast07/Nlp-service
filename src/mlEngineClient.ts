@@ -5,8 +5,10 @@ const ML_ENGINE_URL = process.env.ML_ENGINE_URL ?? "http://localhost:8001";
 export class MlEngineError extends Error {}
 
 export async function obtenerRecomendacion(parametros: ParametrosViaje): Promise<Recomendacion> {
+  // 90s: el free tier de Render puede tardar 50+ segundos en cold start
+  // mas el tiempo de procesamiento del primer request (carga CSV + KMeans).
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+  const timeoutId = setTimeout(() => controller.abort(), 90_000);
 
   let response: Response;
   try {
