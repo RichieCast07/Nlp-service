@@ -32,7 +32,6 @@ const ActividadSchema = z.object({
   tipo: z.enum(["destino", "restaurante"]),
   municipio: z.string(),
   categoria: z.string().nullable(),
-  tipo_comida: z.string().nullable(),
   costo_estimado: z.number(),
   costo_total_grupo: z.number(),
   tiempo_horas: z.number(),
