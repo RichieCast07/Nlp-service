@@ -27,7 +27,12 @@ export async function obtenerRecomendacion(parametros: ParametrosViaje): Promise
 
   if (!response.ok) {
     const detalle = await response.text();
-    throw new MlEngineError(`El motor ML respondio ${response.status}: ${detalle}`);
+    // Render devuelve paginas HTML completas en errores 502/503 (cold start, caida).
+    // No las propagamos al cliente — solo el codigo y un mensaje corto.
+    const resumen = detalle.trimStart().startsWith("<")
+      ? "el servicio no esta disponible (posible cold start, espera unos segundos e intenta de nuevo)"
+      : detalle.slice(0, 150);
+    throw new MlEngineError(`El motor ML respondio ${response.status}: ${resumen}`);
   }
 
   const raw: unknown = await response.json();
