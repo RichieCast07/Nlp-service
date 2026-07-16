@@ -5,17 +5,24 @@ const ML_ENGINE_URL = process.env.ML_ENGINE_URL ?? "http://localhost:8001";
 export class MlEngineError extends Error {}
 
 export async function obtenerRecomendacion(parametros: ParametrosViaje): Promise<Recomendacion> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30_000);
+
   let response: Response;
   try {
     response = await fetch(`${ML_ENGINE_URL}/recomendar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(parametros),
+      signal: controller.signal,
     });
   } catch (err) {
-    throw new MlEngineError(
-      `No se pudo conectar con el motor ML (Capa 2) en ${ML_ENGINE_URL}: ${(err as Error).message}`,
-    );
+    const msg = (err as Error).name === "AbortError"
+      ? `Tiempo de espera agotado esperando al motor ML (${ML_ENGINE_URL})`
+      : `No se pudo conectar con el motor ML (Capa 2) en ${ML_ENGINE_URL}: ${(err as Error).message}`;
+    throw new MlEngineError(msg);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!response.ok) {

@@ -69,6 +69,21 @@ export async function redactarRespuesta(
   recomendacion: Recomendacion,
   textoOriginal: string,
 ): Promise<string> {
+  const resumen = {
+    itinerario: recomendacion.itinerario.map((a) => ({
+      nombre: a.nombre,
+      tipo: a.tipo,
+      municipio: a.municipio,
+      costo_estimado: a.costo_estimado,
+      costo_total_grupo: a.costo_total_grupo,
+      tiempo_horas: a.tiempo_horas,
+    })),
+    costo_total: recomendacion.costo_total,
+    tiempo_total_horas: recomendacion.tiempo_total_horas,
+    presupuesto_disponible: recomendacion.presupuesto_disponible,
+    reglas_asociacion_aplicadas: recomendacion.reglas_asociacion_aplicadas,
+  };
+
   const completion = await groq.chat.completions.create({
     model: MODEL,
     temperature: 0.4,
@@ -76,7 +91,7 @@ export async function redactarRespuesta(
       { role: "system", content: REDACTOR_SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Mensaje original del turista: "${textoOriginal}"\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(recomendacion)}`,
+        content: `Mensaje original del turista: "${textoOriginal}"\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(resumen)}`,
       },
     ],
   });
