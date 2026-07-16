@@ -2,10 +2,16 @@ services:
   - type: web
     name: ec-nlp-service
     runtime: node
+    region: oregon
+    plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
-    plan: free
+    healthCheckPath: /health
     envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: PORT
+        value: 3001
       - key: GROQ_API_KEY
         sync: false
       - key: ML_ENGINE_URL
