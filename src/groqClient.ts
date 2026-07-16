@@ -100,5 +100,15 @@ export async function redactarRespuesta(
   if (!mensaje) {
     throw new ExtractionError("Groq no devolvio contenido al redactar la respuesta final");
   }
+
+  // Si la respuesta contiene etiquetas HTML/SVG el modelo devolvio basura
+  // (sobrecarga, alucinacion, o respuesta de error de la API en formato HTML).
+  // Lo rechazamos para que Flutter muestre el mensaje de error amigable
+  // en lugar del contenido crudo.
+  if (/<[a-zA-Z][\s\S]*?>/.test(mensaje)) {
+    console.error("[redactarRespuesta] Groq devolvio HTML/SVG en lugar de texto:", mensaje.slice(0, 300));
+    throw new ExtractionError("El modelo devolvio HTML en lugar de texto; intenta de nuevo");
+  }
+
   return mensaje.trim();
 }
