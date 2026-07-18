@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express, { type Request, type Response } from "express";
 import { ExtractRequestSchema } from "./schema.js";
-import { extraerParametros, redactarRespuesta, ExtractionError } from "./groqClient.js";
+import { extraerParametros, redactarRespuesta, responderConversacional, ExtractionError } from "./groqClient.js";
 import { obtenerRecomendacion, MlEngineError } from "./mlEngineClient.js";
 
 if (!process.env.GROQ_API_KEY) {
@@ -42,6 +42,15 @@ app.post("/planear", async (req: Request, res: Response) => {
 
   try {
     const parametros = await extraerParametros(texto);
+
+    // Si el usuario no menciono ningun parametro de viaje (saludo, pregunta general, etc.)
+    // respondemos conversacionalmente sin llamar al motor ML.
+    const sinIntento = Object.values(parametros).every((v) => v === null);
+    if (sinIntento) {
+      const mensaje = await responderConversacional(texto);
+      return res.json({ mensaje });
+    }
+
     const recomendacion = await obtenerRecomendacion(parametros);
     const mensaje = await redactarRespuesta(recomendacion, texto);
 

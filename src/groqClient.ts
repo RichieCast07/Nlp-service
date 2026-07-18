@@ -65,6 +65,28 @@ Reglas estrictas:
 - Tono amigable, breve (maximo 4-5 lineas), en espanol, dirigido directamente al turista.
 - No menciones JSON, clusters, Apriori, K-Means ni detalles tecnicos: el usuario solo quiere su plan de viaje.`;
 
+const SALUDO_SYSTEM_PROMPT = `Eres el asistente de ExploraChiapas, una app de turismo en Chiapas, Mexico.
+El usuario escribio algo sin mencionar un viaje concreto. Responde de forma amigable en espanol, en maximo 2 lineas.
+Invitalo a contarte a donde quiere ir, cuantas personas viajan, su presupuesto y tiempo disponible.
+No menciones destinos especificos ni inventes datos.`;
+
+export async function responderConversacional(texto: string): Promise<string> {
+  const completion = await groq.chat.completions.create({
+    model: MODEL,
+    temperature: 0.7,
+    messages: [
+      { role: "system", content: SALUDO_SYSTEM_PROMPT },
+      { role: "user", content: texto },
+    ],
+  });
+
+  const mensaje = completion.choices[0]?.message?.content;
+  if (!mensaje) {
+    throw new ExtractionError("Groq no devolvio contenido");
+  }
+  return mensaje.trim();
+}
+
 export async function redactarRespuesta(
   recomendacion: Recomendacion,
   textoOriginal: string,
