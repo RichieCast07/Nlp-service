@@ -28,6 +28,8 @@ REGLAS PARA interes — usa SIEMPRE una de las 8 categorias exactas, nunca inven
 - "foto", "fotografia", "fotografiar", "paisaje", "instagram" → "fotografia"
 - "evento", "festival", "fiesta", "carnaval", "concierto", "feria" → "eventos"
 
+IMPORTANTE: Extrae los parametros SIEMPRE del ultimo mensaje del usuario en esta conversacion. Ignora los destinos o datos mencionados en respuestas anteriores del asistente.
+
 Responde SOLO con un JSON con exactamente estas 6 llaves: destino, interes, comida, personas, presupuesto, tiempo.`;
 
 export class ExtractionError extends Error {}
@@ -59,10 +61,17 @@ function normalizarInteres(raw: unknown): string | null {
   return MAPA_INTERES[val] ?? null;
 }
 
+// Al pasar el historial a GROQ para extraccion de parametros, los mensajes
+// del asistente contienen bloques ```card``` con JSON que menciona municipios
+// de destinos anteriores. Eso confunde al modelo y puede hacer que extraiga
+// el municipio previo en vez del que el usuario pide ahora.
+// Solución: reemplazar esos bloques con un marcador neutro.
 function historialToGroqMessages(historial: MensajeHistorial[]) {
   return historial.map((m) => ({
     role: m.rol === "user" ? "user" as const : "assistant" as const,
-    content: m.contenido,
+    content: m.rol !== "user"
+      ? m.contenido.replace(/```card[\s\S]*?```/g, "[itinerario sugerido]")
+      : m.contenido,
   }));
 }
 
