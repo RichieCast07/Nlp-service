@@ -19,7 +19,7 @@ function nivelTrafico(): string {
 export async function calcularTiempos(
   userLat: number,
   userLng: number,
-  destinos: Array<{ lat: number | null; lng: number | null }>
+  destinos: Array<{ lat?: number | null; lng?: number | null }>
 ): Promise<Array<TravelResult | null>> {
   // Solo destinos con coordenadas conocidas
   const indexConCoords: number[] = [];
