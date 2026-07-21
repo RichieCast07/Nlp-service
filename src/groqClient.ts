@@ -1,5 +1,6 @@
 import Groq from "groq-sdk";
-import { CATEGORIAS_INTERES, ParametrosViajeSchema, type ParametrosViaje, type Recomendacion } from "./schema.js";
+import { CATEGORIAS_INTERES, ParametrosViajeSchema, type ParametrosViaje, type Recomendacion, type MensajeHistorial } from "./schema.js";
+import type { TravelResult } from "./routeService.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
@@ -58,13 +59,21 @@ function normalizarInteres(raw: unknown): string | null {
   return MAPA_INTERES[val] ?? null;
 }
 
-export async function extraerParametros(texto: string): Promise<ParametrosViaje> {
+function historialToGroqMessages(historial: MensajeHistorial[]) {
+  return historial.map((m) => ({
+    role: m.rol === "user" ? "user" as const : "assistant" as const,
+    content: m.contenido,
+  }));
+}
+
+export async function extraerParametros(texto: string, historial: MensajeHistorial[] = []): Promise<ParametrosViaje> {
   const completion = await groq.chat.completions.create({
     model: MODEL,
     temperature: 0,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
+      ...historialToGroqMessages(historial),
       { role: "user", content: texto },
     ],
   });
@@ -111,17 +120,19 @@ FORMATO DE RESPUESTA OBLIGATORIO — sigue este orden exacto:
   "nombre": "<nombre del lugar>",
   "categoria": "<tipo exacto del JSON: destino o restaurante>",
   "direccion": "<municipio del JSON>, Chiapas",
-  "coordenadas": null,
+  "coordenadas": <si el JSON tiene lat y lng del lugar usa {"lat": X, "lng": Y}, sino null>,
   "foto_principal": null,
   "calificacion": 0,
   "num_resenas": 0,
-  "descripcion_corta": "<descripcion breve y atractiva, maximo 150 caracteres, basada en nombre y categoria>"
+  "descripcion_corta": "<descripcion breve y atractiva, maximo 150 caracteres, basada en nombre y categoria>",
+  "tiempo_traslado_minutos": <usa el valor tiempo_traslado_minutos del JSON si esta disponible, sino null>
 }
 \`\`\`
 3. Una sola linea al final con el costo total y el tiempo total del itinerario.
 
 Reglas estrictas:
 - NO inventes lugares, precios ni datos fuera del JSON recibido.
+- NO inventes tiempos de traslado ni coordenadas — usa exactamente los valores del JSON o null.
 - Si el itinerario esta vacio dilo honestamente y sugiere ajustar presupuesto o tiempo.
 - NO menciones JSON, clusters, algoritmos ni detalles tecnicos.
 - Tono amigable, en espanol, dirigido directamente al turista.`;
@@ -151,15 +162,22 @@ export async function responderConversacional(texto: string): Promise<string> {
 export async function redactarRespuesta(
   recomendacion: Recomendacion,
   textoOriginal: string,
+  historial: MensajeHistorial[] = [],
+  tiempos: Array<TravelResult | null> | null = null,
 ): Promise<string> {
   const resumen = {
-    itinerario: recomendacion.itinerario.map((a) => ({
+    itinerario: recomendacion.itinerario.map((a, i) => ({
       nombre: a.nombre,
       tipo: a.tipo,
       municipio: a.municipio,
       costo_estimado: a.costo_estimado,
       costo_total_grupo: a.costo_total_grupo,
       tiempo_horas: a.tiempo_horas,
+      lat: (a as { lat?: number | null }).lat ?? null,
+      lng: (a as { lng?: number | null }).lng ?? null,
+      tiempo_traslado_minutos: tiempos?.[i]?.tiempoMinutos ?? null,
+      distancia_km: tiempos?.[i]?.distanciaKm ?? null,
+      nivel_trafico: tiempos?.[i]?.nivelTrafico ?? null,
     })),
     costo_total: recomendacion.costo_total,
     tiempo_total_horas: recomendacion.tiempo_total_horas,
@@ -172,6 +190,7 @@ export async function redactarRespuesta(
     temperature: 0.4,
     messages: [
       { role: "system", content: REDACTOR_SYSTEM_PROMPT },
+      ...historialToGroqMessages(historial),
       {
         role: "user",
         content: `Mensaje original del turista: "${textoOriginal}"\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(resumen)}`,
