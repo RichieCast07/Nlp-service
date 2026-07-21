@@ -41,6 +41,22 @@ app.post("/extract", async (req: Request, res: Response) => {
   }
 });
 
+// Reemplaza foto_principal en los bloques ```card``` del texto de GROQ
+// usando el mapa id→url del ML engine, sin depender de que GROQ copie la URL.
+function inyectarFotos(mensaje: string, fotos: Map<number, string | null>): string {
+  return mensaje.replace(/```card\n([\s\S]*?)```/g, (match, jsonStr) => {
+    try {
+      const card = JSON.parse(jsonStr.trim()) as Record<string, unknown>;
+      if (typeof card.id === "number" && fotos.has(card.id)) {
+        card.foto_principal = fotos.get(card.id) ?? null;
+      }
+      return "```card\n" + JSON.stringify(card, null, 2) + "\n```";
+    } catch {
+      return match;
+    }
+  });
+}
+
 app.post("/planear", async (req: Request, res: Response) => {
   const parsedBody = PlanearRequestSchema.safeParse(req.body);
   if (!parsedBody.success) {
@@ -67,7 +83,16 @@ app.post("/planear", async (req: Request, res: Response) => {
 
     const mensaje = await redactarRespuesta(recomendacion, texto, historial, tiempos);
 
-    res.json({ parametros, recomendacion, mensaje });
+    // Inyectar foto_principal directo (GROQ no copia URLs largas de forma confiable)
+    const fotosMap = new Map<number, string | null>(
+      recomendacion.itinerario.map((a) => [
+        a.id,
+        (a as { foto_principal?: string | null }).foto_principal ?? null,
+      ])
+    );
+    const mensajeConFotos = inyectarFotos(mensaje, fotosMap);
+
+    res.json({ parametros, recomendacion, mensaje: mensajeConFotos });
   } catch (err) {
     if (err instanceof ExtractionError) {
       return res.status(502).json({ error: `Capa 1 (LLM): ${err.message}` });
