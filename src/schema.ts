@@ -16,6 +16,20 @@ export const ExtractRequestSchema = z.object({
 });
 export type ExtractRequest = z.infer<typeof ExtractRequestSchema>;
 
+export const MensajeHistorialSchema = z.object({
+  rol:       z.enum(["user", "bot"]),
+  contenido: z.string().min(1).max(5000),
+});
+
+export const PlanearRequestSchema = z.object({
+  texto:     z.string().min(3, "El texto debe tener al menos 3 caracteres"),
+  historial: z.array(MensajeHistorialSchema).max(20).optional(),
+  user_lat:  z.number().optional(),
+  user_lng:  z.number().optional(),
+});
+export type PlanearRequest = z.infer<typeof PlanearRequestSchema>;
+export type MensajeHistorial = z.infer<typeof MensajeHistorialSchema>;
+
 export const ParametrosViajeSchema = z.object({
   destino: z.string().nullable(),
   interes: z.enum(CATEGORIAS_INTERES).nullable(),
@@ -38,6 +52,8 @@ const ActividadSchema = z.object({
   nivel_afluencia: z.number(),
   cluster_afluencia: z.string().nullable(),
   tipo_comida: z.string().nullable().optional(),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
 });
 
 export const RecomendacionSchema = z.object({
