@@ -36,14 +36,15 @@ app.post("/extract", async (req, res) => {
     }
 });
 // Reemplaza foto_principal en los bloques ```card``` del texto de GROQ
-// usando el mapa id→url del ML engine, sin depender de que GROQ copie la URL.
+// usando la posicion del card (GROQ no recibe los IDs reales, los inventa).
 function inyectarFotos(mensaje, fotos) {
+    let indice = 0;
     return mensaje.replace(/```card\n([\s\S]*?)```/g, (match, jsonStr) => {
+        const foto = fotos[indice] ?? null;
+        indice++;
         try {
             const card = JSON.parse(jsonStr.trim());
-            if (typeof card.id === "number" && fotos.has(card.id)) {
-                card.foto_principal = fotos.get(card.id) ?? null;
-            }
+            card.foto_principal = foto;
             return "```card\n" + JSON.stringify(card, null, 2) + "\n```";
         }
         catch {
@@ -71,12 +72,9 @@ app.post("/planear", async (req, res) => {
             tiempos = await calcularTiempos(user_lat, user_lng, recomendacion.itinerario);
         }
         const mensaje = await redactarRespuesta(recomendacion, texto, historial, tiempos);
-        // Inyectar foto_principal directo (GROQ no copia URLs largas de forma confiable)
-        const fotosMap = new Map(recomendacion.itinerario.map((a) => [
-            a.id,
-            a.foto_principal ?? null,
-        ]));
-        const mensajeConFotos = inyectarFotos(mensaje, fotosMap);
+        // Inyectar foto_principal por posicion (GROQ inventa IDs, no son confiables)
+        const fotosArray = recomendacion.itinerario.map((a) => a.foto_principal ?? null);
+        const mensajeConFotos = inyectarFotos(mensaje, fotosArray);
         res.json({ parametros, recomendacion, mensaje: mensajeConFotos });
     }
     catch (err) {
