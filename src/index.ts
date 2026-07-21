@@ -49,19 +49,54 @@ function inyectarFotos(mensaje: string, fotos: Array<string | null>): string {
   const resultado = mensaje.replace(/```card\s*([\s\S]*?)```/g, (match, jsonStr) => {
     const foto = fotos[indice] ?? null;
     indice++;
+    const fotoValue = foto !== null ? JSON.stringify(foto) : "null";
     try {
       const card = JSON.parse(jsonStr.trim()) as Record<string, unknown>;
       card.foto_principal = foto;
       reemplazos++;
       return "```card\n" + JSON.stringify(card, null, 2) + "\n```";
     } catch {
-      console.warn(`[inyectarFotos] JSON invalido en card ${indice}:`, jsonStr.slice(0, 100));
+      // JSON invalido: intentar reemplazo con regex como fallback
+      const fixed = jsonStr.replace(
+        /"foto_principal"\s*:\s*(?:"[^"]*"|null|[^,}\n]*)/,
+        `"foto_principal": ${fotoValue}`
+      );
+      if (fixed !== jsonStr) {
+        reemplazos++;
+        return "```card\n" + fixed.trim() + "\n```";
+      }
+      console.warn(`[inyectarFotos] No se pudo inyectar foto en card ${indice}:`, jsonStr.slice(0, 120));
       return match;
     }
   });
-  console.log(`[inyectarFotos] ${reemplazos} cards reemplazadas. Fotos: ${JSON.stringify(fotos)}`);
+  console.log(`[inyectarFotos] ${reemplazos}/${indice} cards con foto. Fotos: ${JSON.stringify(fotos)}`);
   return resultado;
 }
+
+// Devuelve destinos destacados del motor ML (los mejor puntuados del catalogo).
+// La home page los usa para mostrar la lista de destinos populares.
+app.get("/destacados", async (req: Request, res: Response) => {
+  const limite = Math.min(parseInt(req.query.limite as string ?? "10") || 10, 30);
+  try {
+    const params = { destino: null, interes: null, comida: null, personas: 1, presupuesto: 3000, tiempo: "1 dia" };
+    const recomendacion = await obtenerRecomendacion(params as Parameters<typeof obtenerRecomendacion>[0]);
+    const destacados = recomendacion.itinerario
+      .filter((a) => (a as { tipo: string }).tipo === "destino")
+      .slice(0, limite)
+      .map((a) => ({
+        id: (a as { id: number }).id,
+        nombre: (a as { nombre: string }).nombre,
+        municipio: (a as { municipio: string }).municipio,
+        categoria: (a as { categoria: string | null }).categoria,
+        foto_principal: (a as { foto_principal?: string | null }).foto_principal ?? null,
+        calificacion: 0,
+      }));
+    res.json({ destacados });
+  } catch (err) {
+    console.error("[destacados] error:", err);
+    res.status(500).json({ error: "Error al obtener destacados" });
+  }
+});
 
 app.post("/planear", async (req: Request, res: Response) => {
   const parsedBody = PlanearRequestSchema.safeParse(req.body);
@@ -72,6 +107,7 @@ app.post("/planear", async (req: Request, res: Response) => {
 
   try {
     const parametros = await extraerParametros(texto, historial);
+    console.log(`[planear] parametros: destino=${parametros.destino} interes=${parametros.interes} presupuesto=${parametros.presupuesto} personas=${parametros.personas} tiempo=${parametros.tiempo}`);
 
     const sinIntento = Object.values(parametros).every((v) => v === null);
     if (sinIntento) {
