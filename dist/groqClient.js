@@ -148,6 +148,7 @@ export async function responderConversacional(texto) {
 export async function redactarRespuesta(recomendacion, textoOriginal, historial = [], tiempos = null) {
     const resumen = {
         itinerario: recomendacion.itinerario.map((a, i) => ({
+            id: a.id,
             nombre: a.nombre,
             tipo: a.tipo,
             municipio: a.municipio,

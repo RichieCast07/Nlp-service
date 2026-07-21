@@ -168,6 +168,7 @@ export async function redactarRespuesta(
 ): Promise<string> {
   const resumen = {
     itinerario: recomendacion.itinerario.map((a, i) => ({
+      id: a.id,
       nombre: a.nombre,
       tipo: a.tipo,
       municipio: a.municipio,
