@@ -152,6 +152,27 @@ El usuario escribio algo sin mencionar un viaje concreto. Responde de forma amig
 Invitalo a contarte a donde quiere ir, cuantas personas viajan, su presupuesto y tiempo disponible.
 No menciones destinos especificos ni inventes datos.`;
 
+export async function pedirCamposFaltantes(
+  texto: string,
+  faltantes: string[],
+  historial: MensajeHistorial[] = [],
+): Promise<string> {
+  const listado = faltantes.join(", ");
+  const completion = await groq.chat.completions.create({
+    model: MODEL,
+    temperature: 0.5,
+    messages: [
+      {
+        role: "system",
+        content: `Eres el asistente de ExploraChiapas. El usuario quiere planear un viaje pero falta informacion: ${listado}. Pide esa informacion de forma amigable y breve, en maximo 2 oraciones. No menciones parametros tecnicos ni JSON.`,
+      },
+      ...historialToGroqMessages(historial),
+      { role: "user", content: texto },
+    ],
+  });
+  return completion.choices[0]?.message?.content?.trim() ?? "¿A dónde te gustaría ir en Chiapas?";
+}
+
 export async function responderConversacional(texto: string): Promise<string> {
   const completion = await groq.chat.completions.create({
     model: MODEL,
