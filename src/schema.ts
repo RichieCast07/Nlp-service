@@ -37,6 +37,7 @@ const ActividadSchema = z.object({
   tiempo_horas: z.number(),
   nivel_afluencia: z.number(),
   cluster_afluencia: z.string().nullable(),
+  tipo_comida: z.string().nullable().optional(),
 });
 
 export const RecomendacionSchema = z.object({
