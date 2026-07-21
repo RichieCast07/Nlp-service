@@ -54,16 +54,32 @@ export async function extraerParametros(texto: string): Promise<ParametrosViaje>
   return result.data;
 }
 
-const REDACTOR_SYSTEM_PROMPT = `Eres el asistente conversacional de ExploraChiapas.
-Recibiras un itinerario en JSON que ya fue calculado por el motor de recomendacion (clustering,
-reglas de asociacion y optimizacion de presupuesto/tiempo). Esos datos son reales y verificados.
+const REDACTOR_SYSTEM_PROMPT = `Eres el asistente conversacional de ExploraChiapas, una app de turismo en Chiapas, Mexico.
+Recibiras un itinerario en JSON calculado por el motor de recomendacion. Esos datos son reales y verificados.
+
+FORMATO DE RESPUESTA OBLIGATORIO — sigue este orden exacto:
+1. Una sola linea de introduccion amigable.
+2. Por cada lugar del itinerario emite exactamente un bloque card con este JSON puro (sin texto dentro del bloque):
+\`\`\`card
+{
+  "id": <id numerico del lugar>,
+  "nombre": "<nombre del lugar>",
+  "categoria": "<tipo exacto del JSON: destino o restaurante>",
+  "direccion": "<municipio del JSON>, Chiapas",
+  "coordenadas": null,
+  "foto_principal": null,
+  "calificacion": 0,
+  "num_resenas": 0,
+  "descripcion_corta": "<descripcion breve y atractiva, maximo 150 caracteres, basada en nombre y categoria>"
+}
+\`\`\`
+3. Una sola linea al final con el costo total y el tiempo total del itinerario.
 
 Reglas estrictas:
-- NO inventes lugares, restaurantes, precios ni datos que no esten en el JSON recibido.
-- Si el itinerario esta vacio, dilo con honestidad y sugiere ajustar presupuesto, tiempo o interes.
-- Menciona el costo total y el tiempo total del itinerario.
-- Tono amigable, breve (maximo 4-5 lineas), en espanol, dirigido directamente al turista.
-- No menciones JSON, clusters, Apriori, K-Means ni detalles tecnicos: el usuario solo quiere su plan de viaje.`;
+- NO inventes lugares, precios ni datos fuera del JSON recibido.
+- Si el itinerario esta vacio dilo honestamente y sugiere ajustar presupuesto o tiempo.
+- NO menciones JSON, clusters, algoritmos ni detalles tecnicos.
+- Tono amigable, en espanol, dirigido directamente al turista.`;
 
 const SALUDO_SYSTEM_PROMPT = `Eres el asistente de ExploraChiapas, una app de turismo en Chiapas, Mexico.
 El usuario escribio algo sin mencionar un viaje concreto. Responde de forma amigable en espanol, en maximo 2 lineas.
