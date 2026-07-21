@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express, { type Request, type Response } from "express";
 import { ExtractRequestSchema, PlanearRequestSchema } from "./schema.js";
-import { extraerParametros, redactarRespuesta, responderConversacional, ExtractionError } from "./groqClient.js";
+import { extraerParametros, redactarRespuesta, responderConversacional, pedirCamposFaltantes, ExtractionError } from "./groqClient.js";
 import { obtenerRecomendacion, warmupMlEngine, MlEngineError } from "./mlEngineClient.js";
 import { calcularTiempos } from "./routeService.js";
 
@@ -89,6 +89,8 @@ app.get("/destacados", async (req: Request, res: Response) => {
         municipio: (a as { municipio: string }).municipio,
         categoria: (a as { categoria: string | null }).categoria,
         foto_principal: (a as { foto_principal?: string | null }).foto_principal ?? null,
+        lat: (a as { lat?: number | null }).lat ?? null,
+        lng: (a as { lng?: number | null }).lng ?? null,
         calificacion: 0,
       }));
     res.json({ destacados });
@@ -112,6 +114,12 @@ app.post("/planear", async (req: Request, res: Response) => {
     const sinIntento = Object.values(parametros).every((v) => v === null);
     if (sinIntento) {
       const mensaje = await responderConversacional(texto);
+      return res.json({ mensaje });
+    }
+
+    // Si el usuario dio pistas de viaje pero falta el destino, pedirlo.
+    if (!parametros.destino) {
+      const mensaje = await pedirCamposFaltantes(texto, ["destino (¿a qué municipio o lugar de Chiapas quieres ir?)"], historial);
       return res.json({ mensaje });
     }
 
