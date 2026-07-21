@@ -54,6 +54,7 @@ const ActividadSchema = z.object({
   tipo_comida: z.string().nullable().optional(),
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
+  foto_principal: z.string().nullable().optional(),
 });
 
 export const RecomendacionSchema = z.object({

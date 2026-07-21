@@ -1,8 +1,9 @@
 import "dotenv/config";
 import express from "express";
-import { ExtractRequestSchema } from "./schema.js";
+import { ExtractRequestSchema, PlanearRequestSchema } from "./schema.js";
 import { extraerParametros, redactarRespuesta, responderConversacional, ExtractionError } from "./groqClient.js";
 import { obtenerRecomendacion, warmupMlEngine, MlEngineError } from "./mlEngineClient.js";
+import { calcularTiempos } from "./routeService.js";
 if (!process.env.GROQ_API_KEY) {
     throw new Error("Falta GROQ_API_KEY en el entorno. Copia .env.example a .env y agrega tu clave.");
 }
@@ -34,24 +35,49 @@ app.post("/extract", async (req, res) => {
         res.status(500).json({ error: "Error interno al extraer parametros" });
     }
 });
+// Reemplaza foto_principal en los bloques ```card``` del texto de GROQ
+// usando el mapa id→url del ML engine, sin depender de que GROQ copie la URL.
+function inyectarFotos(mensaje, fotos) {
+    return mensaje.replace(/```card\n([\s\S]*?)```/g, (match, jsonStr) => {
+        try {
+            const card = JSON.parse(jsonStr.trim());
+            if (typeof card.id === "number" && fotos.has(card.id)) {
+                card.foto_principal = fotos.get(card.id) ?? null;
+            }
+            return "```card\n" + JSON.stringify(card, null, 2) + "\n```";
+        }
+        catch {
+            return match;
+        }
+    });
+}
 app.post("/planear", async (req, res) => {
-    const parsedBody = ExtractRequestSchema.safeParse(req.body);
+    const parsedBody = PlanearRequestSchema.safeParse(req.body);
     if (!parsedBody.success) {
         return res.status(400).json({ error: parsedBody.error.flatten() });
     }
-    const { texto } = parsedBody.data;
+    const { texto, historial = [], user_lat, user_lng } = parsedBody.data;
     try {
-        const parametros = await extraerParametros(texto);
-        // Si el usuario no menciono ningun parametro de viaje (saludo, pregunta general, etc.)
-        // respondemos conversacionalmente sin llamar al motor ML.
+        const parametros = await extraerParametros(texto, historial);
         const sinIntento = Object.values(parametros).every((v) => v === null);
         if (sinIntento) {
             const mensaje = await responderConversacional(texto);
             return res.json({ mensaje });
         }
         const recomendacion = await obtenerRecomendacion(parametros);
-        const mensaje = await redactarRespuesta(recomendacion, texto);
-        res.json({ parametros, recomendacion, mensaje });
+        // Calcular tiempos de traslado desde la ubicación del usuario (si la tiene).
+        let tiempos = null;
+        if (user_lat != null && user_lng != null && recomendacion.itinerario.length > 0) {
+            tiempos = await calcularTiempos(user_lat, user_lng, recomendacion.itinerario);
+        }
+        const mensaje = await redactarRespuesta(recomendacion, texto, historial, tiempos);
+        // Inyectar foto_principal directo (GROQ no copia URLs largas de forma confiable)
+        const fotosMap = new Map(recomendacion.itinerario.map((a) => [
+            a.id,
+            a.foto_principal ?? null,
+        ]));
+        const mensajeConFotos = inyectarFotos(mensaje, fotosMap);
+        res.json({ parametros, recomendacion, mensaje: mensajeConFotos });
     }
     catch (err) {
         if (err instanceof ExtractionError) {
