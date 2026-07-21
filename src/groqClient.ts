@@ -4,22 +4,59 @@ import { CATEGORIAS_INTERES, ParametrosViajeSchema, type ParametrosViaje, type R
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 
-const SYSTEM_PROMPT = `Eres un extractor de parametros para ExploraChiapas, una plataforma de rutas turisticas.
-Tu unica tarea es leer un mensaje de un turista en espanol (puede ser coloquial o mal escrito) y devolver
+const SYSTEM_PROMPT = `Eres un extractor de parametros para ExploraChiapas, una plataforma de rutas turisticas en Chiapas, Mexico.
+Tu unica tarea es leer un mensaje de un turista (puede ser coloquial, informal o mal escrito) y devolver
 un objeto JSON con los parametros de su viaje. No inventes datos que no esten en el texto: si un campo no
 se menciona, usa null. No agregues explicaciones ni texto fuera del JSON.
 
 Campos a extraer:
 - destino: lugar, municipio o region mencionada (string o null).
-- interes: clasifica el interes principal en EXACTAMENTE una de estas categorias: ${CATEGORIAS_INTERES.join(", ")}. null si no aplica.
+- interes: clasifica el interes principal en EXACTAMENTE una de estas 8 categorias: ${CATEGORIAS_INTERES.join(", ")}. Debes mapear palabras del usuario a la categoria mas cercana. null solo si no hay ninguna pista de interes.
 - comida: tipo de comida o plato mencionado (string o null).
 - personas: numero entero de personas que viajan (number o null).
 - presupuesto: presupuesto en pesos mexicanos, solo el numero (number o null).
 - tiempo: duracion disponible tal como la expreso el usuario, ej. "medio dia", "2 dias" (string o null).
 
+REGLAS PARA interes — usa SIEMPRE una de las 8 categorias exactas, nunca inventes otra:
+- "romantico", "romantica", "en pareja", "luna de miel", "relax", "tranquilo", "spa" → "descanso"
+- "comida", "comer", "gastronomico", "restaurante", "platillos" → "gastronomia"
+- "naturaleza", "ecologico", "ecoturismo", "rio", "cascada", "playa", "campo", "bosque" → "naturaleza"
+- "aventura", "adrenalina", "deporte", "extremo", "senderismo", "trekking", "rappel" → "aventura"
+- "familiar", "familia", "ninos", "kids", "infantil", "bebes" → "familiar"
+- "historia", "historico", "colonial", "cultura", "arte", "museo", "iglesia", "zona arqueologica" → "cultura"
+- "foto", "fotografia", "fotografiar", "paisaje", "instagram" → "fotografia"
+- "evento", "festival", "fiesta", "carnaval", "concierto", "feria" → "eventos"
+
 Responde SOLO con un JSON con exactamente estas 6 llaves: destino, interes, comida, personas, presupuesto, tiempo.`;
 
 export class ExtractionError extends Error {}
+
+// Mapeo de palabras coloquiales a categorias validas del enum
+const MAPA_INTERES: Record<string, string> = {
+  romantico: "descanso", romantica: "descanso", romance: "descanso",
+  "en pareja": "descanso", "luna de miel": "descanso",
+  relax: "descanso", relajante: "descanso", descansar: "descanso",
+  tranquilo: "descanso", tranquila: "descanso", tranquilidad: "descanso", spa: "descanso",
+  comida: "gastronomia", comer: "gastronomia", restaurante: "gastronomia",
+  gastronomico: "gastronomia", gastronomica: "gastronomia", platillos: "gastronomia",
+  playa: "naturaleza", ecologico: "naturaleza", ecoturismo: "naturaleza",
+  rio: "naturaleza", cascada: "naturaleza", bosque: "naturaleza", campo: "naturaleza",
+  deporte: "aventura", deportes: "aventura", adrenalina: "aventura",
+  extremo: "aventura", senderismo: "aventura", trekking: "aventura", rappel: "aventura",
+  familiar: "familiar", ninos: "familiar", kids: "familiar", infantil: "familiar", bebes: "familiar",
+  historia: "cultura", historico: "cultura", historica: "cultura",
+  arte: "cultura", museo: "cultura", colonial: "cultura", arqueologico: "cultura",
+  foto: "fotografia", fotografiar: "fotografia", paisaje: "fotografia", instagram: "fotografia",
+  evento: "eventos", festival: "eventos", fiesta: "eventos",
+  carnaval: "eventos", concierto: "eventos", feria: "eventos",
+};
+
+function normalizarInteres(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  const val = String(raw).toLowerCase().trim();
+  if (CATEGORIAS_INTERES.includes(val as typeof CATEGORIAS_INTERES[number])) return val;
+  return MAPA_INTERES[val] ?? null;
+}
 
 export async function extraerParametros(texto: string): Promise<ParametrosViaje> {
   const completion = await groq.chat.completions.create({
@@ -37,15 +74,23 @@ export async function extraerParametros(texto: string): Promise<ParametrosViaje>
     throw new ExtractionError("Groq no devolvio contenido en la respuesta");
   }
 
-  let parsedJson: unknown;
+  let parsedJson: Record<string, unknown>;
   try {
-    parsedJson = JSON.parse(raw);
+    parsedJson = JSON.parse(raw) as Record<string, unknown>;
   } catch {
     throw new ExtractionError(`La respuesta del modelo no es JSON valido: ${raw}`);
   }
 
+  // Normalizar interes antes de validar con Zod
+  parsedJson.interes = normalizarInteres(parsedJson.interes);
+
   const result = ParametrosViajeSchema.safeParse(parsedJson);
   if (!result.success) {
+    // Fallback: si algo mas falla, nulificar interes y reintentar antes de lanzar error
+    console.warn("[extraerParametros] Zod fallo, reintentando con interes=null:", result.error.issues);
+    parsedJson.interes = null;
+    const fallback = ParametrosViajeSchema.safeParse(parsedJson);
+    if (fallback.success) return fallback.data;
     throw new ExtractionError(
       `La respuesta del modelo no cumple el esquema esperado: ${result.error.message}`,
     );
