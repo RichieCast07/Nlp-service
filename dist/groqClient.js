@@ -110,7 +110,7 @@ FORMATO DE RESPUESTA OBLIGATORIO — sigue este orden exacto:
   "categoria": "<tipo exacto del JSON: destino o restaurante>",
   "direccion": "<municipio del JSON>, Chiapas",
   "coordenadas": <si el JSON tiene lat y lng del lugar usa {"lat": X, "lng": Y}, sino null>,
-  "foto_principal": null,
+  "foto_principal": <copia EXACTAMENTE el valor de foto_principal del JSON; si es null pon null>,
   "calificacion": 0,
   "num_resenas": 0,
   "descripcion_corta": "<descripcion breve y atractiva, maximo 150 caracteres, basada en nombre y categoria>",
@@ -122,6 +122,7 @@ FORMATO DE RESPUESTA OBLIGATORIO — sigue este orden exacto:
 Reglas estrictas:
 - NO inventes lugares, precios ni datos fuera del JSON recibido.
 - NO inventes tiempos de traslado ni coordenadas — usa exactamente los valores del JSON o null.
+- foto_principal es una URL de imagen — copiarla tal cual, sin modificar ni inventar URLs.
 - Si el itinerario esta vacio dilo honestamente y sugiere ajustar presupuesto o tiempo.
 - NO menciones JSON, clusters, algoritmos ni detalles tecnicos.
 - Tono amigable, en espanol, dirigido directamente al turista.`;
@@ -155,6 +156,7 @@ export async function redactarRespuesta(recomendacion, textoOriginal, historial 
             tiempo_horas: a.tiempo_horas,
             lat: a.lat ?? null,
             lng: a.lng ?? null,
+            foto_principal: a.foto_principal ?? null,
             tiempo_traslado_minutos: tiempos?.[i]?.tiempoMinutos ?? null,
             distancia_km: tiempos?.[i]?.distanciaKm ?? null,
             nivel_trafico: tiempos?.[i]?.nivelTrafico ?? null,
