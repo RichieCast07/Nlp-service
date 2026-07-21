@@ -2,7 +2,7 @@ import "dotenv/config";
 import express, { type Request, type Response } from "express";
 import { ExtractRequestSchema } from "./schema.js";
 import { extraerParametros, redactarRespuesta, responderConversacional, ExtractionError } from "./groqClient.js";
-import { obtenerRecomendacion, MlEngineError } from "./mlEngineClient.js";
+import { obtenerRecomendacion, warmupMlEngine, MlEngineError } from "./mlEngineClient.js";
 
 if (!process.env.GROQ_API_KEY) {
   throw new Error("Falta GROQ_API_KEY en el entorno. Copia .env.example a .env y agrega tu clave.");
@@ -12,6 +12,13 @@ const app = express();
 app.use(express.json());
 
 app.get("/health", (_req: Request, res: Response) => {
+  res.json({ status: "ok" });
+});
+
+// Despierta el motor ML (Render free tier duerme tras 15 min).
+// Llamar esto al abrir la pantalla de chat.
+app.get("/warmup", async (_req: Request, res: Response) => {
+  await warmupMlEngine();
   res.json({ status: "ok" });
 });
 
