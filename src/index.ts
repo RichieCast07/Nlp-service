@@ -45,17 +45,22 @@ app.post("/extract", async (req: Request, res: Response) => {
 // usando la posicion del card (GROQ no recibe los IDs reales, los inventa).
 function inyectarFotos(mensaje: string, fotos: Array<string | null>): string {
   let indice = 0;
-  return mensaje.replace(/```card\n([\s\S]*?)```/g, (match, jsonStr) => {
+  let reemplazos = 0;
+  const resultado = mensaje.replace(/```card\s*([\s\S]*?)```/g, (match, jsonStr) => {
     const foto = fotos[indice] ?? null;
     indice++;
     try {
       const card = JSON.parse(jsonStr.trim()) as Record<string, unknown>;
       card.foto_principal = foto;
+      reemplazos++;
       return "```card\n" + JSON.stringify(card, null, 2) + "\n```";
     } catch {
+      console.warn(`[inyectarFotos] JSON invalido en card ${indice}:`, jsonStr.slice(0, 100));
       return match;
     }
   });
+  console.log(`[inyectarFotos] ${reemplazos} cards reemplazadas. Fotos: ${JSON.stringify(fotos)}`);
+  return resultado;
 }
 
 app.post("/planear", async (req: Request, res: Response) => {
@@ -88,6 +93,7 @@ app.post("/planear", async (req: Request, res: Response) => {
     const fotosArray = recomendacion.itinerario.map(
       (a) => (a as { foto_principal?: string | null }).foto_principal ?? null
     );
+    console.log(`[planear] itinerario: ${recomendacion.itinerario.length} items, fotos: ${JSON.stringify(fotosArray)}`);
     const mensajeConFotos = inyectarFotos(mensaje, fotosArray);
 
     res.json({ parametros, recomendacion, mensaje: mensajeConFotos });
