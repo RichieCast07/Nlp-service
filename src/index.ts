@@ -132,11 +132,7 @@ app.post("/planear", async (req: Request, res: Response) => {
     }
 
     const contextoFallback = (recomendacion as { mensaje?: string | null }).mensaje ?? null;
-    const mensaje = await redactarRespuesta(
-      recomendacion, texto, historial, tiempos, contextoFallback,
-      nombre_usuario ?? null,
-      es_primer_mensaje ?? false,
-    );
+    const mensaje = await redactarRespuesta(recomendacion, texto, historial, tiempos, contextoFallback);
 
     // Inyectar foto_principal por posicion (GROQ inventa IDs, no son confiables)
     const fotosArray = recomendacion.itinerario.map(
@@ -145,7 +141,12 @@ app.post("/planear", async (req: Request, res: Response) => {
     console.log(`[planear] itinerario: ${recomendacion.itinerario.length} items, fotos: ${JSON.stringify(fotosArray)}`);
     const mensajeConFotos = inyectarFotos(mensaje, fotosArray);
 
-    res.json({ parametros, recomendacion, mensaje: mensajeConFotos });
+    // Saludo personalizado en el primer mensaje de la conversación
+    const mensajeFinal = (es_primer_mensaje && nombre_usuario)
+      ? `¡Hola ${nombre_usuario}! ${mensajeConFotos}`
+      : mensajeConFotos;
+
+    res.json({ parametros, recomendacion, mensaje: mensajeFinal });
   } catch (err) {
     if (err instanceof ExtractionError) {
       return res.status(502).json({ error: `Capa 1 (LLM): ${err.message}` });
