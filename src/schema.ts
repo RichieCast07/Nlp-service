@@ -22,10 +22,12 @@ export const MensajeHistorialSchema = z.object({
 });
 
 export const PlanearRequestSchema = z.object({
-  texto:     z.string().min(3, "El texto debe tener al menos 3 caracteres"),
-  historial: z.array(MensajeHistorialSchema).max(20).optional(),
-  user_lat:  z.number().optional(),
-  user_lng:  z.number().optional(),
+  texto:             z.string().min(3, "El texto debe tener al menos 3 caracteres"),
+  historial:         z.array(MensajeHistorialSchema).max(20).optional(),
+  user_lat:          z.number().optional(),
+  user_lng:          z.number().optional(),
+  nombre_usuario:    z.string().max(80).optional(),
+  es_primer_mensaje: z.boolean().optional(),
 });
 export type PlanearRequest = z.infer<typeof PlanearRequestSchema>;
 export type MensajeHistorial = z.infer<typeof MensajeHistorialSchema>;
