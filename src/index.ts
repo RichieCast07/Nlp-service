@@ -102,6 +102,7 @@ app.get("/destacados", async (req: Request, res: Response) => {
 });
 
 app.post("/planear", async (req: Request, res: Response) => {
+  try { appendFileSync('/tmp/nlp-saludo.log', `HIT ${Date.now()} body=${JSON.stringify(req.body).slice(0,100)}\n`); } catch (_) {}
   const parsedBody = PlanearRequestSchema.safeParse(req.body);
   if (!parsedBody.success) {
     return res.status(400).json({ error: parsedBody.error.flatten() });
