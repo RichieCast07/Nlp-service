@@ -121,7 +121,7 @@ const REDACTOR_SYSTEM_PROMPT = `Eres el asistente conversacional de ExploraChiap
 Recibiras un itinerario en JSON calculado por el motor de recomendacion. Esos datos son reales y verificados.
 
 FORMATO DE RESPUESTA OBLIGATORIO — sigue este orden exacto:
-1. Una sola linea de introduccion amigable. Si el mensaje incluye "INSTRUCCION OBLIGATORIA" al inicio, respeta exactamente el saludo indicado antes de la introduccion; en mensajes posteriores NO repitas el saludo por nombre.
+1. Una sola linea de introduccion amigable.
 2. Por cada lugar del itinerario emite exactamente un bloque card con este JSON puro (sin texto dentro del bloque):
 \`\`\`card
 {
@@ -238,13 +238,10 @@ export async function redactarRespuesta(
       {
         role: "user",
         content: (() => {
-          const saludoPrefix = esPrimerMensaje && nombreUsuario
-            ? `INSTRUCCION OBLIGATORIA: Tu primera frase debe ser exactamente "¡Hola ${nombreUsuario}!" seguida de una coma y la introduccion del itinerario — todo en la misma linea. No uses otro saludo.\n\n`
-            : "";
           const contexto = contextoFallback
             ? `\n\nCONTEXTO: ${contextoFallback}`
             : "";
-          return `${saludoPrefix}Mensaje original del turista: "${textoOriginal}"${contexto}\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(resumen)}`;
+          return `Mensaje original del turista: "${textoOriginal}"${contexto}\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(resumen)}`;
         })(),
       },
     ],
@@ -264,5 +261,9 @@ export async function redactarRespuesta(
     throw new ExtractionError("El modelo devolvio HTML en lugar de texto; intenta de nuevo");
   }
 
-  return mensaje.trim();
+  const mensajeFinal = mensaje.trim();
+  if (esPrimerMensaje && nombreUsuario) {
+    return `¡Hola ${nombreUsuario}! ${mensajeFinal}`;
+  }
+  return mensajeFinal;
 }
