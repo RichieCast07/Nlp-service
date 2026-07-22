@@ -204,8 +204,6 @@ export async function redactarRespuesta(
   historial: MensajeHistorial[] = [],
   tiempos: Array<TravelResult | null> | null = null,
   contextoFallback: string | null = null,
-  nombreUsuario: string | null = null,
-  esPrimerMensaje: boolean = false,
 ): Promise<string> {
   const resumen = {
     itinerario: recomendacion.itinerario.map((a, i) => ({
@@ -261,9 +259,5 @@ export async function redactarRespuesta(
     throw new ExtractionError("El modelo devolvio HTML en lugar de texto; intenta de nuevo");
   }
 
-  const mensajeFinal = mensaje.trim();
-  if (esPrimerMensaje && nombreUsuario) {
-    return `¡Hola ${nombreUsuario}! ${mensajeFinal}`;
-  }
-  return mensajeFinal;
+  return mensaje.trim();
 }
