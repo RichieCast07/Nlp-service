@@ -131,7 +131,8 @@ app.post("/planear", async (req: Request, res: Response) => {
       tiempos = await calcularTiempos(user_lat, user_lng, recomendacion.itinerario);
     }
 
-    const mensaje = await redactarRespuesta(recomendacion, texto, historial, tiempos);
+    const contextoFallback = (recomendacion as { mensaje?: string | null }).mensaje ?? null;
+    const mensaje = await redactarRespuesta(recomendacion, texto, historial, tiempos, contextoFallback);
 
     // Inyectar foto_principal por posicion (GROQ inventa IDs, no son confiables)
     const fotosArray = recomendacion.itinerario.map(

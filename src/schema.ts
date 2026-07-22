@@ -67,6 +67,8 @@ export const RecomendacionSchema = z.object({
   tiempo_disponible_horas: z.number(),
   reglas_asociacion_aplicadas: z.array(z.string()),
   resumen_clusters_candidatos: z.record(z.string(), z.number()),
+  mensaje: z.string().nullable().optional(),
+  es_fallback: z.boolean().optional(),
   creado_en: z.string(),
 });
 export type Recomendacion = z.infer<typeof RecomendacionSchema>;

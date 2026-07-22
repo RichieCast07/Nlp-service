@@ -195,6 +195,7 @@ export async function redactarRespuesta(
   textoOriginal: string,
   historial: MensajeHistorial[] = [],
   tiempos: Array<TravelResult | null> | null = null,
+  contextoFallback: string | null = null,
 ): Promise<string> {
   const resumen = {
     itinerario: recomendacion.itinerario.map((a, i) => ({
@@ -226,7 +227,9 @@ export async function redactarRespuesta(
       ...historialToGroqMessages(historial),
       {
         role: "user",
-        content: `Mensaje original del turista: "${textoOriginal}"\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(resumen)}`,
+        content: contextoFallback
+          ? `Mensaje original del turista: "${textoOriginal}"\n\nCONTEXTO: ${contextoFallback}\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(resumen)}`
+          : `Mensaje original del turista: "${textoOriginal}"\n\nItinerario calculado (JSON real, no inventar nada fuera de esto):\n${JSON.stringify(resumen)}`,
       },
     ],
   });
