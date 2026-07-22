@@ -105,7 +105,7 @@ app.post("/planear", async (req: Request, res: Response) => {
   if (!parsedBody.success) {
     return res.status(400).json({ error: parsedBody.error.flatten() });
   }
-  const { texto, historial = [], user_lat, user_lng } = parsedBody.data;
+  const { texto, historial = [], user_lat, user_lng, nombre_usuario, es_primer_mensaje } = parsedBody.data;
 
   try {
     const parametros = await extraerParametros(texto, historial);
@@ -132,7 +132,11 @@ app.post("/planear", async (req: Request, res: Response) => {
     }
 
     const contextoFallback = (recomendacion as { mensaje?: string | null }).mensaje ?? null;
-    const mensaje = await redactarRespuesta(recomendacion, texto, historial, tiempos, contextoFallback);
+    const mensaje = await redactarRespuesta(
+      recomendacion, texto, historial, tiempos, contextoFallback,
+      nombre_usuario ?? null,
+      es_primer_mensaje ?? false,
+    );
 
     // Inyectar foto_principal por posicion (GROQ inventa IDs, no son confiables)
     const fotosArray = recomendacion.itinerario.map(
