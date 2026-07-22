@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { appendFileSync } from "fs";
 import express, { type Request, type Response } from "express";
 import { ExtractRequestSchema, PlanearRequestSchema } from "./schema.js";
 import { extraerParametros, redactarRespuesta, responderConversacional, pedirCamposFaltantes, ExtractionError } from "./groqClient.js";
@@ -101,6 +102,7 @@ app.get("/destacados", async (req: Request, res: Response) => {
 });
 
 app.post("/planear", async (req: Request, res: Response) => {
+  try { appendFileSync('/tmp/nlp-saludo.log', `HIT ${Date.now()} body=${JSON.stringify(req.body).slice(0,100)}\n`); } catch (_) {}
   const parsedBody = PlanearRequestSchema.safeParse(req.body);
   if (!parsedBody.success) {
     return res.status(400).json({ error: parsedBody.error.flatten() });
@@ -142,7 +144,7 @@ app.post("/planear", async (req: Request, res: Response) => {
     const mensajeConFotos = inyectarFotos(mensaje, fotosArray);
 
     // Saludo personalizado en el primer mensaje de la conversación
-    console.log(`[planear] saludo: primer=${String(es_primer_mensaje)} nombre=${String(nombre_usuario)}`);
+    try { appendFileSync('/tmp/nlp-saludo.log', `${Date.now()} primer=${String(es_primer_mensaje)} nombre=${String(nombre_usuario)}\n`); } catch (_) {}
     const mensajeFinal = (es_primer_mensaje && nombre_usuario)
       ? `¡Hola ${nombre_usuario}! ${mensajeConFotos}`
       : mensajeConFotos;
