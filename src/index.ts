@@ -142,7 +142,9 @@ app.post("/planear", async (req: Request, res: Response) => {
     const mensajeConFotos = inyectarFotos(mensaje, fotosArray);
 
     // Saludo personalizado en el primer mensaje de la conversación
-    console.log(`[planear] saludo: primer=${String(es_primer_mensaje)} nombre=${String(nombre_usuario)}`);
+    import('fs').then(({ appendFileSync }) => {
+      appendFileSync('/tmp/nlp-saludo.log', `${Date.now()} primer=${String(es_primer_mensaje)} nombre=${String(nombre_usuario)}\n`);
+    });
     const mensajeFinal = (es_primer_mensaje && nombre_usuario)
       ? `¡Hola ${nombre_usuario}! ${mensajeConFotos}`
       : mensajeConFotos;
