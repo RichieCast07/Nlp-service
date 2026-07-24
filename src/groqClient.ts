@@ -8,18 +8,27 @@ const MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 const SYSTEM_PROMPT = `Eres un extractor de parametros para ExploraChiapas, una plataforma de rutas turisticas en Chiapas, Mexico.
 Tu unica tarea es leer un mensaje de un turista (puede ser coloquial, informal o mal escrito) y devolver
 un objeto JSON con los parametros de su viaje. No inventes datos que no esten en el texto: si un campo no
-se menciona, usa null. No agregues explicaciones ni texto fuera del JSON.
+se menciona, usa null o []. No agregues explicaciones ni texto fuera del JSON.
+
+Las 8 categorias validas son: ${CATEGORIAS_INTERES.join(", ")}.
 
 Campos a extraer:
 - destino: lugar, municipio o region mencionada (string o null).
-- interes: clasifica el interes principal en EXACTAMENTE una de estas 8 categorias: ${CATEGORIAS_INTERES.join(", ")}. Debes mapear palabras del usuario a la categoria mas cercana. null solo si no hay ninguna pista de interes.
+- interes: el interes PRINCIPAL del usuario, una sola categoria de las 8 (string o null).
+- intereses: LISTA de hasta 3 categorias que le interesan al usuario (array, puede ser []).
+  Si el usuario menciona varios intereses positivos (ej. "naturaleza y aventura"), ponlos todos aqui.
+  Si solo hay un interes, pon ese mismo aqui tambien. interes e intereses deben ser consistentes.
+- categorias_excluidas: LISTA de categorias que el usuario rechaza explicitamente (array, puede ser []).
+  Detecta frases de rechazo como: "no me gusta X", "sin X", "nada de X", "no quiero X", "evitar X",
+  "no fotografía", "no cultura", "sin aventura", etc. Solo incluye categorias que el usuario RECHAZA,
+  no las que simplemente no menciona.
 - comida: tipo de comida o plato mencionado (string o null).
 - personas: numero entero de personas que viajan (number o null).
 - presupuesto: presupuesto en pesos mexicanos, solo el numero (number o null).
 - tiempo: duracion disponible tal como la expreso el usuario, ej. "medio dia", "2 dias" (string o null).
 
-REGLAS PARA interes — usa SIEMPRE una de las 8 categorias exactas, nunca inventes otra:
-- "romantico", "romantica", "en pareja", "luna de miel", "relax", "tranquilo", "spa" → "descanso"
+REGLAS DE MAPEO — usa SIEMPRE una de las 8 categorias exactas:
+- "romantico", "en pareja", "luna de miel", "relax", "tranquilo", "spa" → "descanso"
 - "comida", "comer", "gastronomico", "restaurante", "platillos" → "gastronomia"
 - "naturaleza", "ecologico", "ecoturismo", "rio", "cascada", "playa", "campo", "bosque" → "naturaleza"
 - "aventura", "adrenalina", "deporte", "extremo", "senderismo", "trekking", "rappel" → "aventura"
@@ -28,9 +37,9 @@ REGLAS PARA interes — usa SIEMPRE una de las 8 categorias exactas, nunca inven
 - "foto", "fotografia", "fotografiar", "paisaje", "instagram" → "fotografia"
 - "evento", "festival", "fiesta", "carnaval", "concierto", "feria" → "eventos"
 
-IMPORTANTE: Extrae los parametros SIEMPRE del ultimo mensaje del usuario en esta conversacion. Ignora los destinos o datos mencionados en respuestas anteriores del asistente.
+IMPORTANTE: Extrae los parametros SIEMPRE del ultimo mensaje del usuario. Ignora datos de respuestas anteriores del asistente.
 
-Responde SOLO con un JSON con exactamente estas 6 llaves: destino, interes, comida, personas, presupuesto, tiempo.`;
+Responde SOLO con un JSON con exactamente estas 8 llaves: destino, interes, intereses, categorias_excluidas, comida, personas, presupuesto, tiempo.`;
 
 export class ExtractionError extends Error {}
 
@@ -59,6 +68,13 @@ function normalizarInteres(raw: unknown): string | null {
   const val = String(raw).toLowerCase().trim();
   if (CATEGORIAS_INTERES.includes(val as typeof CATEGORIAS_INTERES[number])) return val;
   return MAPA_INTERES[val] ?? null;
+}
+
+function normalizarListaCategorias(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => normalizarInteres(item))
+    .filter((v): v is string => v !== null);
 }
 
 // Al pasar el historial a GROQ para extraccion de parametros, los mensajes
@@ -99,14 +115,27 @@ export async function extraerParametros(texto: string, historial: MensajeHistori
     throw new ExtractionError(`La respuesta del modelo no es JSON valido: ${raw}`);
   }
 
-  // Normalizar interes antes de validar con Zod
+  // Normalizar todos los campos de categoría antes de validar con Zod
   parsedJson.interes = normalizarInteres(parsedJson.interes);
+  parsedJson.intereses = normalizarListaCategorias(parsedJson.intereses);
+  parsedJson.categorias_excluidas = normalizarListaCategorias(parsedJson.categorias_excluidas);
+
+  // Si el modelo no llenó `intereses` pero sí `interes`, propagarlo.
+  if (parsedJson.interes && (parsedJson.intereses as string[]).length === 0) {
+    parsedJson.intereses = [parsedJson.interes];
+  }
+  // Si `intereses` está poblado pero `interes` está vacío, tomar el primero.
+  if (!parsedJson.interes && (parsedJson.intereses as string[]).length > 0) {
+    parsedJson.interes = (parsedJson.intereses as string[])[0];
+  }
 
   const result = ParametrosViajeSchema.safeParse(parsedJson);
   if (!result.success) {
-    // Fallback: si algo mas falla, nulificar interes y reintentar antes de lanzar error
-    console.warn("[extraerParametros] Zod fallo, reintentando con interes=null:", result.error.issues);
+    // Fallback: limpiar campos de categorías y reintentar antes de lanzar error
+    console.warn("[extraerParametros] Zod fallo, reintentando con intereses limpios:", result.error.issues);
     parsedJson.interes = null;
+    parsedJson.intereses = [];
+    parsedJson.categorias_excluidas = [];
     const fallback = ParametrosViajeSchema.safeParse(parsedJson);
     if (fallback.success) return fallback.data;
     throw new ExtractionError(

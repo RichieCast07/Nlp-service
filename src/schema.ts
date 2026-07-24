@@ -34,7 +34,12 @@ export type MensajeHistorial = z.infer<typeof MensajeHistorialSchema>;
 
 export const ParametrosViajeSchema = z.object({
   destino: z.string().nullable(),
+  // interes: campo legacy (una categoría). Se mantiene para retrocompat con el ML engine.
   interes: z.enum(CATEGORIAS_INTERES).nullable(),
+  // intereses: lista de hasta 3 categorías que el usuario quiere (nuevo).
+  intereses: z.array(z.enum(CATEGORIAS_INTERES)).max(3).optional().default([]),
+  // categorias_excluidas: filtro duro — nunca aparecen en el resultado (nuevo).
+  categorias_excluidas: z.array(z.enum(CATEGORIAS_INTERES)).max(8).optional().default([]),
   comida: z.string().nullable(),
   personas: z.number().int().positive().nullable(),
   presupuesto: z.number().nonnegative().nullable(),
